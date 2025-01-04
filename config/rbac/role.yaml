@@ -1,0 +1,35 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challengeinstances
+  - challenges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challengeinstances/finalizers
+  - challenges/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challengeinstances/status
+  - challenges/status
+  verbs:
+  - get
+  - patch
+  - update
