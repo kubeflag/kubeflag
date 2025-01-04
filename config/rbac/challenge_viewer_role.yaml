@@ -1,0 +1,23 @@
+# permissions for end users to view challenges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: kubeflag
+    app.kubernetes.io/managed-by: kustomize
+  name: challenge-viewer-role
+rules:
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challenges
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challenges/status
+  verbs:
+  - get

@@ -1,0 +1,27 @@
+# permissions for end users to edit challenges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: kubeflag
+    app.kubernetes.io/managed-by: kustomize
+  name: challenge-editor-role
+rules:
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challenges
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kubeflag.io
+  resources:
+  - challenges/status
+  verbs:
+  - get
