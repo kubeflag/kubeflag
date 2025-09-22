@@ -1,0 +1,12 @@
+
+# This is the configuration for https://github.com/xrstf/gimps.
+
+importOrder: [std, external, kubeflag, kubernetes]
+sets:
+  - name: kubeflag
+    patterns:
+      - 'github.com/kubeflag/kubeflag/**'
+  - name: kubernetes
+    patterns:
+      - 'k8s.io/**'
+      - '*.k8s.io/**'

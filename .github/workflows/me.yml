@@ -1,0 +1,17 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches:
+      - main 
+      - master  # or main (depends on your repo default branch)
+
+jobs:
+  run-on-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run my script
+        run: echo "This job runs on every PR 🚀"
