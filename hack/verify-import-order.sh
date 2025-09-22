@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright 2025 The KubeFlag Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,30 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin/*
-Dockerfile.cross
+set -euo pipefail
 
-# Test binary, built with `go test -c`
-*.test
+cd $(dirname $0)/..
+source hack/lib.sh
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+if ! [ -x "$(command -v gimps)" ]; then
+  echodate "You need to have gimps installed before running this script. Please install it: https://github.com/xrstf/gimps"
+  exit 1
+fi
 
-# Go workspace file
-go.work
+echodate "Sorting import statements..."
+gimps . -d
 
-# Kubernetes Generated files - skip generated files, except for vendored files
-!vendor/**/zz_generated.*
+echodate "Diffing..."
+if ! git diff --exit-code; then
+  echodate "Some import statements are not properly grouped. Please run https://github.com/xrstf/gimps or sort them manually."
+  exit 1
+fi
 
-# editor and IDE paraphernalia
-.idea
-.vscode
-*.swp
-*.swo
-*~
+echodate "Your Go import statements are in order :-)"

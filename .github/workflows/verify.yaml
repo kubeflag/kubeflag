@@ -1,0 +1,44 @@
+name: 🧪 Verify
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+      - 'release-*'
+      - 'v*'
+      - master
+
+jobs:
+  verify:
+    name: 🧪 Verify (Go + Tools)
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install a specific Go version
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true # Cache Go modules
+
+      # 3. Install Go-based binaries/tools
+      - name: Install tools
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          go install go.xrstf.de/gimps@latest
+          go install github.com/kubermatic-labs/boilerplate@latest
+          go install github.com/frapposelli/wwhrd@latest
+
+      # 4. Make sure $GOPATH/bin is on PATH
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      # 5. Run your verification tasks
+      - name: Run verifications
+        run: |
+          make verify
