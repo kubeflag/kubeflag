@@ -1,0 +1,9 @@
+apiVersion: kubeflag.io/v1alpha1
+kind: Challenge
+metadata:
+  labels:
+    app.kubernetes.io/name: kubeflag
+    app.kubernetes.io/managed-by: kustomize
+  name: challenge-sample
+spec:
+  # TODO(user): Add fields here
