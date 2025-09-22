@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kubeflagv1 "github.com/kubeflag/kubeflag/api/v1alpha1"
+	kubeflagiov1alpha1 "github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
 )
 
 var _ = Describe("ChallengeInstance Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("ChallengeInstance Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		challengeinstance := &kubeflagv1.ChallengeInstance{}
+		challengeinstance := &kubeflagiov1alpha1.ChallengeInstance{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind ChallengeInstance")
 			err := k8sClient.Get(ctx, typeNamespacedName, challengeinstance)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &kubeflagv1.ChallengeInstance{
+				resource := &kubeflagiov1alpha1.ChallengeInstance{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("ChallengeInstance Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &kubeflagv1.ChallengeInstance{}
+			resource := &kubeflagiov1alpha1.ChallengeInstance{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
