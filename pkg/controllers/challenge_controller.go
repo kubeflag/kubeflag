@@ -23,13 +23,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// ChallengeReconciler reconciles a Challenge object
+// ChallengeReconciler reconciles a Challenge object.
 type ChallengeReconciler struct {
-	client.Client
+	ctrlruntimeclient.Client
 	Scheme *runtime.Scheme
 }
 
