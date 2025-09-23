@@ -77,7 +77,7 @@ type Challenge struct {
 
 // +kubebuilder:object:root=true
 
-// ChallengeList contains a list of Challenge
+// ChallengeList contains a list of Challenge.
 type ChallengeList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

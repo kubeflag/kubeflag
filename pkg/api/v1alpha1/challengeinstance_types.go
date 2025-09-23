@@ -23,7 +23,7 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ChallengeInstanceSpec defines the desired state of ChallengeInstance
+// ChallengeInstanceSpec defines the desired state of ChallengeInstance.
 type ChallengeInstanceSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -61,7 +61,7 @@ type ChallengeInstanceStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// ChallengeInstance is the Schema for the challengeinstances API
+// ChallengeInstance is the Schema for the challengeinstances API.
 type ChallengeInstance struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -80,7 +80,7 @@ type ChallengeInstance struct {
 
 // +kubebuilder:object:root=true
 
-// ChallengeInstanceList contains a list of ChallengeInstance
+// ChallengeInstanceList contains a list of ChallengeInstance.
 type ChallengeInstanceList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

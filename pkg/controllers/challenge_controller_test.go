@@ -24,7 +24,7 @@ import (
 
 	kubeflagiov1alpha1 "github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -45,7 +45,7 @@ var _ = Describe("Challenge Controller", func() {
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Challenge")
 			err := k8sClient.Get(ctx, typeNamespacedName, challenge)
-			if err != nil && errors.IsNotFound(err) {
+			if err != nil && apierrors.IsNotFound(err) {
 				resource := &kubeflagiov1alpha1.Challenge{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
