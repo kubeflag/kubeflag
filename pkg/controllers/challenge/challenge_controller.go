@@ -19,17 +19,24 @@ package controller
 import (
 	"context"
 
-	kubeflagiov1alpha1 "github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
+	"github.com/go-logr/logr"
+
+	"github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+const ControllerName = "challenge-controller"
 
 // ChallengeReconciler reconciles a Challenge object.
 type ChallengeReconciler struct {
 	ctrlruntimeclient.Client
+	log    logr.Logger
 	Scheme *runtime.Scheme
 }
 
@@ -54,10 +61,20 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ChallengeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&kubeflagiov1alpha1.Challenge{}).
-		Named("challenge").
-		Complete(r)
+// Add creates a new Challenge controller and adds it to the Manager.
+func Add(ctx context.Context, mgr ctrl.Manager, numWorkers int, log *logr.Logger) error {
+	reconciler := &ChallengeReconciler{
+		Client: mgr.GetClient(),
+		log:    *log,
+	}
+	// Set up the controller with the reconciler
+	_, err := builder.ControllerManagedBy(mgr).
+		Named(ControllerName).
+		For(&v1alpha1.Challenge{}).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: numWorkers,
+		}).
+		Build(reconciler)
+
+	return err
 }

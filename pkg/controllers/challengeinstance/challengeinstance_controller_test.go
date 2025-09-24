@@ -27,10 +27,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-var _ = Describe("Challenge Controller", func() {
+var (
+	k8sClient ctrlruntimeclient.Client
+)
+
+var _ = Describe("ChallengeInstance Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -40,13 +45,13 @@ var _ = Describe("Challenge Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		challenge := &kubeflagiov1alpha1.Challenge{}
+		challengeinstance := &kubeflagiov1alpha1.ChallengeInstance{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Challenge")
-			err := k8sClient.Get(ctx, typeNamespacedName, challenge)
+			By("creating the custom resource for the Kind ChallengeInstance")
+			err := k8sClient.Get(ctx, typeNamespacedName, challengeinstance)
 			if err != nil && apierrors.IsNotFound(err) {
-				resource := &kubeflagiov1alpha1.Challenge{
+				resource := &kubeflagiov1alpha1.ChallengeInstance{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,16 +64,16 @@ var _ = Describe("Challenge Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &kubeflagiov1alpha1.Challenge{}
+			resource := &kubeflagiov1alpha1.ChallengeInstance{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance Challenge")
+			By("Cleanup the specific resource instance ChallengeInstance")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &ChallengeReconciler{
+			controllerReconciler := &ChallengeInstanceReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
