@@ -19,13 +19,16 @@ package controller
 import (
 	"context"
 
-	kubeflagiov1alpha1 "github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
+	"github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+const ControllerName = "challenge-instance-controller"
 
 // ChallengeInstanceReconciler reconciles a ChallengeInstance object.
 type ChallengeInstanceReconciler struct {
@@ -54,10 +57,16 @@ func (r *ChallengeInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ChallengeInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&kubeflagiov1alpha1.ChallengeInstance{}).
-		Named("challengeinstance").
-		Complete(r)
+// Add creates a new Challenge controller and adds it to the Manager.
+func Add(ctx context.Context, mgr ctrl.Manager) error {
+	reconciler := &ChallengeInstanceReconciler{
+		Client: mgr.GetClient(),
+	}
+	// Set up the controller with the reconciler
+	_, err := builder.ControllerManagedBy(mgr).
+		Named(ControllerName).
+		For(&v1alpha1.Challenge{}).
+		Build(reconciler)
+
+	return err
 }
