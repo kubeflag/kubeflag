@@ -19,12 +19,12 @@ package app
 import (
 	"flag"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
 	"github.com/kubeflag/kubeflag/cmd/controller-manager/app/options"
 	kubeflagv1 "github.com/kubeflag/kubeflag/pkg/api/v1alpha1"
+	kubeflaglog "github.com/kubeflag/kubeflag/pkg/log"
 
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -50,7 +50,10 @@ func NewControllerManagerCommand() *cobra.Command {
 		Short: "Controller manager for KubeFlag",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Parse the flags from the FlagSet
-			fs.Parse(args)
+			err := fs.Parse(args)
+			if err != nil {
+				return err
+			}
 			return runControllerManager(opts)
 		},
 	}
@@ -63,7 +66,9 @@ func NewControllerManagerCommand() *cobra.Command {
 
 func runControllerManager(opts *options.ControllerManagerRunOptions) error {
 	// Initialize logger
-	ctrlruntimelog.SetLogger(ctrlruntimelog.Log.WithName(controllerName))
+	rawLog, _ := kubeflaglog.NewZapLogger(opts.LogLevel, opts.LogFormat)
+	log := rawLog.WithName(controllerName)
+	ctrlruntimelog.SetLogger(log)
 
 	// Setting up kubernetes Configuration
 	cfg, err := ctrlruntime.GetConfig()

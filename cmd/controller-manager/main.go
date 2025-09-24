@@ -22,10 +22,6 @@ import (
 	"github.com/kubeflag/kubeflag/cmd/controller-manager/app"
 )
 
-const (
-	controllerName = "kubeflag-controller-manager"
-)
-
 func main() {
 	cmd := app.NewControllerManagerCommand()
 	if err := cmd.Execute(); err != nil {

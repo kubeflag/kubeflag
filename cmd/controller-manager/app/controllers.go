@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The KubeFlag contributors.
+Copyright 2025 The KubeFlag contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,9 @@ package app
 import (
 	"fmt"
 
-	"github.com/mohamed-rafraf/kubeflag/cmd/controller-manager/app/options"
-	challengecontroller "github.com/mohamed-rafraf/kubeflag/pkg/controllers/challenge"
-	instancecontroller "github.com/mohamed-rafraf/kubeflag/pkg/controllers/challengeinstance"
-	datasynccontroller "github.com/mohamed-rafraf/kubeflag/pkg/controllers/datasyncer"
+	"github.com/kubeflag/kubeflag/cmd/controller-manager/app/options"
+	challengecontroller "github.com/kubeflag/kubeflag/pkg/controllers/challenge"
+	instancecontroller "github.com/kubeflag/kubeflag/pkg/controllers/challengeinstance"
 )
 
 type controllerCreator func(*options.ControllerContext) error
@@ -33,7 +32,6 @@ type controllerCreator func(*options.ControllerContext) error
 var AllControllers = map[string]controllerCreator{
 	challengecontroller.ControllerName: createChallengeController,
 	instancecontroller.ControllerName:  createInstanceController,
-	datasynccontroller.ControllerName:  createDataSyncController,
 }
 
 func createAllControllers(ctrlCtx *options.ControllerContext) error {
@@ -44,10 +42,6 @@ func createAllControllers(ctrlCtx *options.ControllerContext) error {
 	}
 
 	return nil
-}
-
-func createDataSyncController(ctrlCtx *options.ControllerContext) error {
-	return datasynccontroller.Add(ctrlCtx.Ctx, ctrlCtx.Mgr, 1, ctrlCtx.Log)
 }
 
 func createChallengeController(ctrlCtx *options.ControllerContext) error {

@@ -21,7 +21,8 @@ import (
 	"flag"
 
 	"github.com/go-logr/logr"
-	"github.com/mohamed-rafraf/kubeflag/pkg/log"
+
+	"github.com/kubeflag/kubeflag/pkg/log"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )

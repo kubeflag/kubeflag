@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright 2025 The KubeFlag Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,30 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin/*
-Dockerfile.cross
-dev.kubeconfig
-# Test binary, built with `go test -c`
-*.test
+set -euo pipefail
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+cd $(dirname $0)/..
+source hack/lib.sh
 
-# Go workspace file
-go.work
+KUBELFAG_DEBUG=${KUBEFLAG_DEBUG:-debug}
+KUBECONFIG=${KUBECONFIG:-dev.kubeconfig}
 
-# Kubernetes Generated files - skip generated files, except for vendored files
-!vendor/**/zz_generated.*
 
-# editor and IDE paraphernalia
-.idea
-.vscode
-*.swp
-*.swo
-*~
+echodate "Compiling kubeflag-controller-manager..."
+
+make controller-manager
+
+echodate "Starting kubeflag-controller-manager..."
+set -x 
+
+KUBECONFIG=$KUBECONFIG ./bin/controller-manager \
+    --log-level=$KUBELFAG_DEBUG \
+    --log-format=Console

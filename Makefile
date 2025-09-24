@@ -27,11 +27,15 @@ endif
 # scaffolded by default. However, you might want to replace it to use other
 # tools. (i.e. podman)
 CONTAINER_TOOL ?= docker
+GOOS ?= $(shell go env GOOS)
+CMD ?= $(filter-out OWNERS, $(notdir $(wildcard ./cmd/*)))
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+
+BUILD_DEST ?= bin
 
 .PHONY: all
 all: build
@@ -123,8 +127,13 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 ##@ Build
 
 .PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+build: $(CMD)
+
+.PHONY: $(CMD)
+$(CMD): %: $(BUILD_DEST)/%
+
+$(BUILD_DEST)/%: cmd/% 
+	GOOS=$(GOOS) go build  -o $@ ./cmd/$*
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
