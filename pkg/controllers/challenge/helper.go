@@ -22,10 +22,10 @@ import (
 	"encoding/json"
 
 	"github.com/kubeflag/kubeflag/pkg/kubernetes"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const DataObjectAnnotationKey = "data.kubeflag.io/challenges"
