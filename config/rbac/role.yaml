@@ -8,7 +8,6 @@ rules:
   - kubeflag.io
   resources:
   - challengeinstances
-  - challenges
   verbs:
   - create
   - delete
@@ -21,14 +20,12 @@ rules:
   - kubeflag.io
   resources:
   - challengeinstances/finalizers
-  - challenges/finalizers
   verbs:
   - update
 - apiGroups:
   - kubeflag.io
   resources:
   - challengeinstances/status
-  - challenges/status
   verbs:
   - get
   - patch
