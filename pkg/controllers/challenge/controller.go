@@ -26,13 +26,13 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -49,7 +49,7 @@ const (
 )
 
 type ChallengeReconciler struct {
-	client.Client
+	ctrlruntimeclient.Client
 	log      logr.Logger
 	recorder record.EventRecorder
 }
@@ -94,7 +94,7 @@ func Add(ctx context.Context, mgr manager.Manager, numWorkers int, log *logr.Log
 	return err
 }
 
-func matchesChallengeRef(obj client.Object) bool {
+func matchesChallengeRef(obj ctrlruntimeclient.Object) bool {
 	instance, ok := obj.(*ctfv1.ChallengeInstance)
 	if !ok {
 		return false
@@ -114,7 +114,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	challenge := &ctfv1.Challenge{}
 	err := r.Get(ctx, req.NamespacedName, challenge)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Challenge resource not found. It might have been deleted.
 			return reconcile.Result{}, nil
 		}
@@ -199,7 +199,6 @@ func (r *ChallengeReconciler) reconcileDelete(ctx context.Context, challenge *ct
 			r.log.Error(err, "Failed to clean up ChallengeInstances")
 			return err
 		}
-
 	}
 
 	if kubernetes.HasFinalizer(challenge, DataObjectFinalizer) {
@@ -236,7 +235,7 @@ func (r *ChallengeReconciler) validateTemplate(ctx context.Context, challenge *c
 			r.recordEvent(ctx, challenge, "Warning", "ValidationFailed", "Container name cannot be empty.")
 			return false
 		}
-		if challenge.Spec.ExposedContainerName != "" && container.Name == challenge.Spec.ExposedContainerName && !(len(container.Ports) > 0) {
+		if challenge.Spec.ExposedContainerName != "" && container.Name == challenge.Spec.ExposedContainerName && len(container.Ports) == 0 {
 			r.recordEvent(ctx, challenge, "Warning", "ValidationFailed", "Exposed container must have a container port!")
 			return false
 		}
@@ -285,7 +284,7 @@ func (r *ChallengeReconciler) updateStatus(ctx context.Context, challenge *ctfv1
 	// List all ChallengeInstances associated with this Challenge
 	var instances ctfv1.ChallengeInstanceList
 	labelSelector := labels.SelectorFromSet(map[string]string{"challengeRef": challenge.Name})
-	if err := r.List(ctx, &instances, &client.ListOptions{
+	if err := r.List(ctx, &instances, &ctrlruntimeclient.ListOptions{
 		Namespace:     challenge.Namespace,
 		LabelSelector: labelSelector,
 	}); err != nil {
@@ -302,7 +301,7 @@ func (r *ChallengeReconciler) updateStatus(ctx context.Context, challenge *ctfv1
 func (r *ChallengeReconciler) cleanupChallengeInstances(ctx context.Context, challenge *ctfv1.Challenge) error {
 	var instances ctfv1.ChallengeInstanceList
 	labelSelector := labels.SelectorFromSet(map[string]string{"challengeRef": challenge.Name})
-	if err := r.List(ctx, &instances, &client.ListOptions{
+	if err := r.List(ctx, &instances, &ctrlruntimeclient.ListOptions{
 		Namespace:     challenge.Namespace,
 		LabelSelector: labelSelector,
 	}); err != nil {
@@ -311,7 +310,7 @@ func (r *ChallengeReconciler) cleanupChallengeInstances(ctx context.Context, cha
 
 	for _, instance := range instances.Items {
 		err := r.Delete(ctx, &instance)
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
@@ -328,9 +327,9 @@ func (r *ChallengeReconciler) cleanupChallengeInstances(ctx context.Context, cha
 func (r *ChallengeReconciler) cleanupChallengeNamespace(ctx context.Context, challenge *ctfv1.Challenge) error {
 	// Fetch the namespace associated with the Challenge
 	namespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: challenge.Name}, namespace)
+	err := r.Get(ctx, ctrlruntimeclient.ObjectKey{Name: challenge.Name}, namespace)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Namespace already deleted or doesn't exist, nothing to do
 			r.log.Info("Namespace not found, might already be deleted", "namespace", challenge.Name)
 			return nil
@@ -364,7 +363,7 @@ func (r *ChallengeReconciler) cleanupChallengeNamespace(ctx context.Context, cha
 func (r *ChallengeReconciler) updateChallengeInstances(ctx context.Context, challenge *ctfv1.Challenge) error {
 	var instances ctfv1.ChallengeInstanceList
 	labelSelector := labels.SelectorFromSet(map[string]string{"challengeRef": challenge.Name})
-	if err := r.List(ctx, &instances, &client.ListOptions{
+	if err := r.List(ctx, &instances, &ctrlruntimeclient.ListOptions{
 		Namespace:     challenge.Namespace,
 		LabelSelector: labelSelector,
 	}); err != nil {
@@ -381,7 +380,7 @@ func (r *ChallengeReconciler) updateChallengeInstances(ctx context.Context, chal
 				return err
 			}
 			r.log.Info("Deleted Deployment to allow ChallengeInstance controller to recreate it", "deployment", deployment.Name)
-		} else if !errors.IsNotFound(err) {
+		} else if !apierrors.IsNotFound(err) {
 			// If there's an error other than NotFound, return it
 			return err
 		}
@@ -394,7 +393,7 @@ func (r *ChallengeReconciler) updateChallengeInstances(ctx context.Context, chal
 				return err
 			}
 			r.log.Info("Deleted Service to allow ChallengeInstance controller to recreate it", "service", service.Name)
-		} else if !errors.IsNotFound(err) {
+		} else if !apierrors.IsNotFound(err) {
 			// If there's an error other than NotFound, return it
 			return err
 		}
@@ -416,8 +415,8 @@ func (r *ChallengeReconciler) updateChallengeStatus(ctx context.Context, challen
 func (r *ChallengeReconciler) reconcileNamespace(ctx context.Context, challenge *ctfv1.Challenge) error {
 	// Check if the namespace with the same name as the Challenge already exists
 	namespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKey{Name: challenge.Name}, namespace)
-	if err != nil && errors.IsNotFound(err) {
+	err := r.Get(ctx, ctrlruntimeclient.ObjectKey{Name: challenge.Name}, namespace)
+	if err != nil && apierrors.IsNotFound(err) {
 		// Namespace does not exist, create it
 		newNamespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -451,17 +450,23 @@ func (r *ChallengeReconciler) reconcileReferences(ctx context.Context, challenge
 	// Annotate Secrets
 	for _, secretRef := range challenge.Spec.SecretReferences {
 		secret := &corev1.Secret{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: secretRef.Name, Namespace: secretRef.Namespace}, secret); err == nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: secretRef.Name, Namespace: secretRef.Namespace}, secret); err == nil {
 			AnnotateResourceWithChallenges(secret, challenge.Name)
-			r.Client.Update(ctx, secret) // Update the secret with the new annotation
+			if err := r.Update(ctx, secret); err != nil {
+				r.log.Error(err, "Failed to update Secret with challenges")
+				return err
+			}
 		}
 	}
 
 	for _, configMapRef := range challenge.Spec.ConfigMapReferences {
 		configMap := &corev1.ConfigMap{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: configMapRef.Name, Namespace: configMapRef.Namespace}, configMap); err == nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: configMapRef.Name, Namespace: configMapRef.Namespace}, configMap); err == nil {
 			AnnotateResourceWithChallenges(configMap, challenge.Name)
-			r.Client.Update(ctx, configMap) // Update the configmap with the new annotation
+			if err := r.Update(ctx, configMap); err != nil {
+				r.log.Error(err, "Failed to update ConfigMap with challenges")
+				return err
+			}
 		}
 	}
 
@@ -477,17 +482,23 @@ func (r *ChallengeReconciler) removeReferences(ctx context.Context, challenge *c
 	// Annotate Secrets
 	for _, secretRef := range challenge.Spec.SecretReferences {
 		secret := &corev1.Secret{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: secretRef.Name, Namespace: secretRef.Namespace}, secret); err == nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: secretRef.Name, Namespace: secretRef.Namespace}, secret); err == nil {
 			RemoveChallengeFromResource(secret, challenge.Name)
-			r.Client.Update(ctx, secret) // Update the secret with the updated annotation
+			if err := r.Update(ctx, secret); err != nil {
+				r.log.Error(err, "Failed to update Secret with challenges")
+				return err
+			}
 		}
 	}
 
 	for _, configMapRef := range challenge.Spec.ConfigMapReferences {
 		configMap := &corev1.ConfigMap{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: configMapRef.Name, Namespace: configMapRef.Namespace}, configMap); err == nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: configMapRef.Name, Namespace: configMapRef.Namespace}, configMap); err == nil {
 			RemoveChallengeFromResource(configMap, challenge.Name)
-			r.Client.Update(ctx, configMap) // Update the configmap with the updated annotation
+			if err := r.Update(ctx, configMap); err != nil {
+				r.log.Error(err, "Failed to update ConfigMap with challenges")
+				return err
+			}
 		}
 	}
 

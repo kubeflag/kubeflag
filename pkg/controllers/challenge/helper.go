@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 
 	"github.com/kubeflag/kubeflag/pkg/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,8 +87,8 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// Helper function to check for the annotation
-func HasChallengesAnnotation(obj client.Object) bool {
+// Helper function to check for the annotation.
+func HasChallengesAnnotation(obj ctrlruntimeclient.Object) bool {
 	annotations := obj.GetAnnotations()
 	_, exists := annotations[DataObjectAnnotationKey]
 	return exists
