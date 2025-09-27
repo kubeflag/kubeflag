@@ -17,6 +17,9 @@ kind: Challenge
 metadata:
   name: web-1
 spec:
+  secretReferences:
+    - name: web
+      namespace: default 
   defaultTTL: 5m
   template:
     spec:
