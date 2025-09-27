@@ -196,8 +196,17 @@ func (r *ChallengeReconciler) reconcileDelete(ctx context.Context, challenge *ct
 	r.log.Info("Challenge is being deleted.")
 	if kubernetes.HasFinalizer(challenge, ChallengeInstanceFinalizer) {
 		r.log.V(1).Info("Cleaning up associated ChallengeInstances.")
-		if err := r.cleanupChallengeInstances(ctx, challenge); err != nil {
-			r.log.Error(err, "Failed to clean up ChallengeInstances")
+
+		if challenge.Status.ActiveInstances > 0 {
+			if err := r.cleanupChallengeInstances(ctx, challenge); err != nil {
+				r.log.Error(err, "Failed to clean up ChallengeInstances")
+				return err
+			}
+		}
+
+		kubernetes.RemoveFinalizer(challenge, ChallengeInstanceFinalizer)
+		if err := r.Update(ctx, challenge); err != nil {
+			r.log.Error(err, "Failed to remove finalizer from Challenge")
 			return err
 		}
 	}
@@ -314,12 +323,6 @@ func (r *ChallengeReconciler) cleanupChallengeInstances(ctx context.Context, cha
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
-	}
-
-	kubernetes.RemoveFinalizer(challenge, ChallengeInstanceFinalizer)
-	if err := r.Update(ctx, challenge); err != nil {
-		r.log.Error(err, "Failed to remove finalizer from Challenge")
-		return err
 	}
 
 	return nil
@@ -448,6 +451,9 @@ func (r *ChallengeReconciler) reconcileNamespace(ctx context.Context, challenge 
 }
 
 func (r *ChallengeReconciler) reconcileReferences(ctx context.Context, challenge *ctfv1.Challenge) error {
+	if len(challenge.Spec.SecretReferences) == 0 && len(challenge.Spec.ConfigMapReferences) == 0 {
+		return nil
+	}
 	// Annotate Secrets
 	for _, secretRef := range challenge.Spec.SecretReferences {
 		secret := &corev1.Secret{}
