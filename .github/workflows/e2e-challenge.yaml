@@ -42,13 +42,9 @@ jobs:
 
       # Run the E2E suite
       - name: Run Ginkgo E2E tests
-        env:
-          KUBECONFIG: kubeconfig
         run: |
-          mkdir -p $HOME/.kube
           kind get kubeconfig --name kubeflag-e2e > kubeconfig
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl get nodes -o wide
           kubectl create -f config/crd/bases/
           go test ./pkg/test/e2e/challenge/... -tags=e2e -v
 
