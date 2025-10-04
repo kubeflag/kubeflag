@@ -127,7 +127,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	// Add finalizer if not present
 	if challenge.GetDeletionTimestamp() == nil && !kubernetes.HasFinalizer(challenge, ChallengeInstanceFinalizer) {
 		kubernetes.AddFinalizer(challenge, ChallengeInstanceFinalizer)
-		if err := r.Update(ctx, challenge); err != nil {
+		if err = r.Update(ctx, challenge); err != nil {
 			r.log.Error(err, "Failed to add finalizer to Challenge")
 			return reconcile.Result{}, err
 		}
@@ -144,19 +144,19 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	challenge.Status.Healthy = healthy
 
 	// Update Challenge status if needed
-	if err := r.updateStatus(ctx, challenge); err != nil {
+	if err = r.updateStatus(ctx, challenge); err != nil {
 		r.log.Error(err, "Failed to update Challenge status")
 		return reconcile.Result{}, err
 	}
 
 	// Reconcile the namespace
-	if err := r.reconcileNamespace(ctx, challenge); err != nil {
+	if err = r.reconcileNamespace(ctx, challenge); err != nil {
 		r.log.Error(err, "Failed to reconcile Namespace")
 		return reconcile.Result{}, err
 	}
 
 	r.log.V(1).Info("Reconciling the References")
-	if err := r.reconcileReferences(ctx, challenge); err != nil {
+	if err = r.reconcileReferences(ctx, challenge); err != nil {
 		return reconcile.Result{}, err
 	}
 
