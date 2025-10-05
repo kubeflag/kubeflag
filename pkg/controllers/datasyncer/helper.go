@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The KubeFlag Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package datasyncer
 
 import (
@@ -6,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/kubeflag/kubeflag/pkg/controllers/challenge"
+
 	"k8s.io/apimachinery/pkg/types"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -33,16 +50,15 @@ func isSource(object ctrlruntimeclient.Object) bool {
 
 	// Check if both conditions are satisfied to determine if it's not a source
 	if labels != nil {
-		// Check if the label "DataSyncLabelKey" exists and its value is "true"
+		// Check if the label "ManagedLabel" exists and its value is "true"
 		if value, labelExists := labels[ManagedLabel]; labelExists && value == "true" {
 			// Check if the label "datasyncer.kubeflag.io/source" exists
 			if _, sourceLabelExists := labels[SourceLabel]; sourceLabelExists {
-				return false // Not a source if both conditions are met
+				return false
 			}
 		}
 	}
 
-	// If either condition is not met, the object is a source
 	return true
 }
 
