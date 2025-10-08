@@ -1,135 +1,130 @@
-# kubeflag
-// TODO(user): Add simple overview of use/purpose
+# 🏴 Kubeflag
+![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)
+![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)
+![Status](https://img.shields.io/badge/status-Developement-orange.svg)
+<div align="center">
+  <img src="./assets/logo-no-bg.png" alt="Logo" width="400" />
+</div>
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
 
-## Getting Started
+**Kubeflag** is a Kubernetes-native orchestration platform for managing and provisioning Capture-The-Flag (CTF) challenge environments.  
+It provides a secure, multi-tenant API that allows CTF platforms (like [CTFd](https://ctfd.io/)) to dynamically create, manage, and destroy challenge instances inside Kubernetes clusters.
 
-### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+Kubeflag bridges the gap between **CTF event platforms** and **Kubernetes infrastructure**, giving each participant a fully isolated, automatically provisioned environment — all through declarative APIs.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
 
-```sh
-make docker-build docker-push IMG=<some-registry>/kubeflag:tag
+
+---
+
+## ✨ Key Features
+
+- **Declarative CRDs** -  `Challenge`, `ChallengeInstance`, `Tenant`, `Consumer`.
+- **Challenge Orchestration** — Define reusable challenge templates with a `Challenge` CRD.
+- **Automatic Namespace Isolation** — Each challenge have its own namespace.
+- **Data Synchronization** — Sync Secrets and ConfigMaps automatically across namespaces.
+- **Multi-Tenancy** — Use `Tenant` CRDs to enforce resource and policy boundaries.
+- **External API Integration** — External platforms communicate through the Kubeflag API.
+- **Token-Based Authentication** — Consumers (like CTFd) authenticate using generated tokens.
+- **Webhook Validation/Mutation** — Enforce rules and policies during CRD lifecycle events.
+
+---
+
+## 🏗️ Architecture Overview
+
+<div align="center">
+  <img src="./assets/arch-overview.png" alt="Logo" width="1100" />
+</div>
+
+### 🧠 Key Concepts
+
+| CRD | Scope | Description |
+|-----|--------|-------------|
+| **Tenant** | Cluster-scoped | Represents a event, or organization. Defines policies like the max number of running instances per user/team. |
+| **Challenge** | Cluster-scoped | Template definition of a challenge, including PodSpec, configuration references, and associated tenant. |
+| **ChallengeInstance** | Namespaced | Represents a live running instance of a challenge. Automatically deployed and exposed (NodePort by default). |
+| **Consumer** | Cluster-scoped | Represents an API consumer (e.g., a CTFd plugin). Each consumer has a token to authenticate API requests. |
+
+
+Kubeflag consists of several core components working together:
+
+| Component | Description |
+|------------|-------------|
+| **Controller Manager** | Runs multiple reconcilers that manage tenants, challenges, challenge instances, and data synchronization. |
+| **API Server** | The main API interface — used by external platforms (like [CTFd](https://ctfd.io)) or custom plugins to create/delete challenge instances. |
+| **Webhook Server** | Handles validation and mutation logic for all CRDs to enforce policies and maintain data integrity. |
+
+kubeflag introduces a multi-tenant model where different **Consumers** (such as CTF events or integrations) can safely request isolated challenge instances based on defined **Tenants** and **Policies**.
+
+
+---
+
+## ⚙️ Installation
+
+We **strongly recommend** using an official release of kubeflag.  
+Each release is tested and packaged as a **Helm chart** for easy deployment.
+
+To install kubeflag:
+
+
+```bash
+helm repo add kubeflag https://kubeflag.github.io/helm-charts
+helm install kubeflag kubeflag/kubeflag --namespace kubeflag-system --create-namespace
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+The code and sample YAML files in the main branch of this repository are under active development
+and are **not guaranteed to be stable**. Use them **at your own risk**.
 
-**Install the CRDs into the cluster:**
+## 📘 More Information
 
-```sh
-make install
-```
+For more information on how to:
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+- Configure **kubeflag** and its CRDs  
+- Create and manage **Challenges**  
+- Define **Challenge Templates** and data references  
+- Build **multi-container** challenge setups  
+- Install and integrate the **CTFd plugin example**  
+- Learn advanced concepts like Tenant isolation, Consumer tokens, and API permissions  
 
-```sh
-make deploy IMG=<some-registry>/kubeflag:tag
-```
+👉 Visit the official **[Documentation Website](https://kubeflag.io/docs)** for detailed guides, examples, and tutorials.
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+---
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+## 🤝 Contributing
 
-```sh
-kubectl apply -k config/samples/
-```
+We welcome all forms of contribution — whether it’s:
+- Reporting bugs 🐛  
+- Improving documentation 📖  
+- Proposing new ideas 💡  
+- Submitting pull requests 🔧  
 
->**NOTE**: Ensure that the samples has default values to test it out.
+Please read our **[CONTRIBUTING.md](CONTRIBUTING.md)** (coming soon) before submitting your first PR.  
+You can also participate in discussions through GitHub Issues or the upcoming community Slack/Discord channel.
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+If you have feature requests or feedback, open an issue with the label `enhancement`.
 
-```sh
-kubectl delete -k config/samples/
-```
+---
 
-**Delete the APIs(CRDs) from the cluster:**
+## 🧑‍💻 Development Guide
 
-```sh
-make uninstall
-```
+> **T.B.D**  
+The development guide will include details on how to:
+- Set up a local development environment  
+- Run the controller manager and webhook server locally  
+- Test kubeflag CRDs with [kind](https://kind.sigs.k8s.io/) or [minikube](https://minikube.sigs.k8s.io/)  
+- Debug controllers and reconcile loops  
+- Contribute code and follow repository conventions  
 
-**UnDeploy the controller from the cluster:**
+Stay tuned — this section will be updated once the first developer preview is ready.
 
-```sh
-make undeploy
-```
+---
 
-## Project Distribution
+## 📜 License
 
-Following the options to release and provide this solution to the users.
+kubeflag is released under the **Apache 2.0 License**.  
+See [LICENSE](LICENSE) for more information.
 
-### By providing a bundle with all YAML files
+---
 
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/kubeflag:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/kubeflag/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+<div align="center">
+Made with ❤️ by <a href="https://github.com/mohamedrafraf">Mohamed Rafraf</a> and the community.
+</div>
