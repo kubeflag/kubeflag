@@ -1,7 +1,7 @@
 # 🏴 Kubeflag
 
 <div align="center">
-  <img src="./assets/logo11.png" alt="Logo" width="500" />
+  <img src="./assets/logo-no-bg.png" alt="Logo" width="400" />
 </div>
 
 
@@ -26,5 +26,8 @@ Kubeflag bridges the gap between **CTF event platforms** and **Kubernetes infras
 - **Webhook Validation/Mutation** — Enforce rules and policies during CRD lifecycle events.
 
 ---
-
 ## 🏗️ Architecture Overview
+
+<div align="center">
+  <img src="./assets/arch-overview.png" alt="Logo" width="1100" />
+</div>
