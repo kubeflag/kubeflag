@@ -148,7 +148,7 @@ func (r *DataSyncerReconciler) reconcileDataObject(ctx context.Context, obj Sync
 			}
 
 			kubernetes.RemoveFinalizer(obj, CleanupFinalizer)
-			if err = r.Update(ctx, obj); err != nil {
+			if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -263,9 +263,9 @@ func (r *DataSyncerReconciler) cleanupCopies(ctx context.Context, source Syncabl
 		var copie ctrlruntimeclient.Object
 		for _, ns := range desired.List() {
 			switch source.(type) {
-			case SecretWrapper:
+			case *SecretWrapper:
 				copie = &corev1.Secret{}
-			case ConfigMapWrapper:
+			case *ConfigMapWrapper:
 				copie = &corev1.ConfigMap{}
 			}
 			key := types.NamespacedName{Name: source.GetGenerateName(), Namespace: ns}
