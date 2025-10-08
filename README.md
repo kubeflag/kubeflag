@@ -1,14 +1,14 @@
 # 🏴 Kubeflag
 
+<div align="center">
+  <img src="./assets/logo11.png" alt="Logo" width="500" />
+</div>
+
 
 **Kubeflag** is a Kubernetes-native orchestration platform for managing and provisioning Capture-The-Flag (CTF) challenge environments.  
 It provides a secure, multi-tenant API that allows CTF platforms (like [CTFd](https://ctfd.io/)) to dynamically create, manage, and destroy challenge instances inside Kubernetes clusters.
 
 Kubeflag bridges the gap between **CTF event platforms** and **Kubernetes infrastructure**, giving each participant a fully isolated, automatically provisioned environment — all through declarative APIs.
-
-<div align="center">
-  <img src="./assets/logo2.png" alt="Logo" width="500" />
-</div>
 
 
 
