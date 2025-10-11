@@ -18,21 +18,25 @@ package datasyncer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 
 	"github.com/kubeflag/kubeflag/pkg/controllers/challenge"
+	"github.com/kubeflag/kubeflag/pkg/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -45,148 +49,342 @@ type DataSyncerReconciler struct {
 	recorder record.EventRecorder
 }
 
-const ControllerName = "datasyncer-controller"
+var rawLog logr.Logger
+
+const (
+	ControllerName   = "datasyncer-controller"
+	ManagedLabel     = "datasyncer.kubeflag.io/managed"
+	SourceLabel      = "datasyncer.kubeflag.io/source"
+	CleanupFinalizer = "datasyncer.kubeflag.io/cleanup-synced-objects"
+	SyncFinalizer    = "datasyncer.kubeflag.io/synced"
+)
 
 // Add creates a new Challenge controller and adds it to the Manager.
 func Add(ctx context.Context, mgr manager.Manager, numWorkers int, log *logr.Logger) error {
 	reconciler := &DataSyncerReconciler{
 		Client:   mgr.GetClient(),
-		log:      log.WithName(ControllerName),
 		recorder: mgr.GetEventRecorderFor(ControllerName),
 	}
 
-	// Define a predicate to filter resources with the annotation
-	annotatedResourcesPredicate := predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return challenge.HasChallengesAnnotation(e.Object)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return challenge.HasChallengesAnnotation(e.ObjectNew)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return challenge.HasChallengesAnnotation(e.Object)
-		},
-		GenericFunc: func(e event.GenericEvent) bool {
-			return challenge.HasChallengesAnnotation(e.Object)
-		},
-	}
+	// Predicate: has Challenge annotation
+	hasChallengeAnno := predicate.NewPredicateFuncs(challenge.HasChallengesAnnotation)
 
-	// Set up the controller with the reconciler
+	// Predicate: has managed label
+	hasManagedLabel := predicate.NewPredicateFuncs(func(obj ctrlruntimeclient.Object) bool {
+		return obj.GetLabels()[ManagedLabel] == "true"
+	})
+
+	// OR: either annotated or managed
+	sourceOrCopyPredicate := predicate.Or(hasChallengeAnno, hasManagedLabel)
+
+	// Build controller: watch Secrets and ConfigMaps matching either predicate
 	_, err := builder.ControllerManagedBy(mgr).
 		Named(ControllerName).
-		WithOptions(controller.Options{
-			MaxConcurrentReconciles: numWorkers,
-		}).
-		For(&corev1.Secret{}).
-		WithEventFilter(annotatedResourcesPredicate). // Add predicate to filter events
+		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers}).
+		For(&corev1.Secret{}, builder.WithPredicates(sourceOrCopyPredicate)).
 		Watches(
-			&corev1.ConfigMap{}, // Watch ConfigMaps
+			&corev1.ConfigMap{},
 			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(annotatedResourcesPredicate), // Add predicate for ConfigMaps
+			builder.WithPredicates(sourceOrCopyPredicate),
 		).
 		Build(reconciler)
-
+	rawLog = log.WithName(ControllerName)
 	return err
 }
 
 func (r *DataSyncerReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	r.log.WithValues("resource", req.NamespacedName)
-	// Attempt to fetch the resource as a Secret
+	// Try Secret first
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, req.NamespacedName, secret); err == nil {
-		r.log.Info("Reconciling Secret", "name", secret.Name, "namespace", secret.Namespace)
-		return r.reconcileSecret(ctx, secret)
+		r.log = rawLog.WithValues("type", "secret", "name", secret.Name, "namespace", secret.Namespace)
+		r.log.Info("Reconciling object")
+		return r.reconcileDataObject(ctx, SecretWrapper{secret})
+	} else if !apierrors.IsNotFound(err) {
+		return reconcile.Result{}, err
 	}
 
-	// If it's not a Secret, attempt to fetch it as a ConfigMap
 	configMap := &corev1.ConfigMap{}
 	if err := r.Get(ctx, req.NamespacedName, configMap); err == nil {
-		r.log.Info("Reconciling ConfigMap", "name", configMap.Name, "namespace", configMap.Namespace)
-		return r.reconcileConfigMap(ctx, configMap)
+		r.log = rawLog.WithValues("type", "configmap", "name", configMap.Name, "namespace", configMap.Namespace)
+		r.log.Info("Reconciling object")
+		return r.reconcileDataObject(ctx, ConfigMapWrapper{configMap})
+	} else if !apierrors.IsNotFound(err) {
+		return reconcile.Result{}, err
 	}
 
-	// If neither, log an error
-	r.log.Error(fmt.Errorf("resource is neither Secret nor ConfigMap"), "Invalid resource type", "name", req.Name, "namespace", req.Namespace)
 	return reconcile.Result{}, nil
-}
-
-// Helper to reconcile a Secret.
-func (r *DataSyncerReconciler) reconcileSecret(ctx context.Context, secret *corev1.Secret) (reconcile.Result, error) {
-	// Parse annotation and sync to target namespaces
-	challengeNames, err := getChallengeNamesFromAnnotation(secret)
-	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("failed to parse challenges annotation: %w", err)
-	}
-	for _, challengeName := range challengeNames {
-		if err := r.syncSecretToNamespace(ctx, secret, challengeName); err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to sync secret to namespace %s: %w", challengeName, err)
-		}
-	}
-	return reconcile.Result{}, nil
-}
-
-// Helper to reconcile a ConfigMap.
-func (r *DataSyncerReconciler) reconcileConfigMap(ctx context.Context, configMap *corev1.ConfigMap) (reconcile.Result, error) {
-	// Parse annotation and sync to target namespaces
-	challengeNames, err := getChallengeNamesFromAnnotation(configMap)
-	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("failed to parse challenges annotation: %w", err)
-	}
-	for _, challengeName := range challengeNames {
-		if err := r.syncConfigMapToNamespace(ctx, configMap, challengeName); err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to sync configmap to namespace %s: %w", challengeName, err)
-		}
-	}
-	return reconcile.Result{}, nil
-}
-
-func (r *DataSyncerReconciler) syncSecretToNamespace(ctx context.Context, secret *corev1.Secret, targetNamespace string) error {
-	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name,
-			Namespace: targetNamespace,
-		},
-		Data:       secret.Data,
-		StringData: secret.StringData,
-		Type:       secret.Type,
-	}
-	return r.createOrUpdate(ctx, newSecret)
-}
-
-func (r *DataSyncerReconciler) syncConfigMapToNamespace(ctx context.Context, configMap *corev1.ConfigMap, targetNamespace string) error {
-	newConfigMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMap.Name,
-			Namespace: targetNamespace,
-		},
-		Data:       configMap.Data,
-		BinaryData: configMap.BinaryData,
-	}
-	return r.createOrUpdate(ctx, newConfigMap)
 }
 
 func (r *DataSyncerReconciler) createOrUpdate(ctx context.Context, obj ctrlruntimeclient.Object) error {
-	r.log.Info("Syncing the data object", "object", obj.GetObjectKind())
+	r.log.Info("Syncing the data object", "target", obj.GetNamespace())
 	err := r.Create(ctx, obj)
 	if err != nil && apierrors.IsAlreadyExists(err) {
-		return r.Update(ctx, obj)
+		r.log.V(1).Info("The object is existing, updating...", "target", obj.GetNamespace())
+		if err1 := r.Update(ctx, obj); err1 != nil {
+			return err1
+		}
+		return nil
 	}
 	return err
 }
 
-// Helper to parse challenge names from annotation.
-func getChallengeNamesFromAnnotation(obj ctrlruntimeclient.Object) ([]string, error) {
-	annotations := obj.GetAnnotations()
-	if annotations == nil {
-		return nil, fmt.Errorf("no annotations found")
+func (r *DataSyncerReconciler) reconcileDataObject(ctx context.Context, obj SyncableObject) (reconcile.Result, error) {
+	if isSource(obj) {
+		return r.reconcileSourceObject(ctx, obj)
+	} else {
+		return r.reconcileCopyObject(ctx, obj)
 	}
-	annotationValue, exists := annotations[challenge.DataObjectAnnotationKey]
-	if !exists {
-		return nil, fmt.Errorf("no challenges annotation found")
+}
+
+func (r *DataSyncerReconciler) reconcileSourceObject(ctx context.Context, obj SyncableObject) (reconcile.Result, error) {
+	challengesNames, err := getChallengeNamesFromAnnotation(obj)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to parse annotations: %w", err)
 	}
-	var challengeNames []string
-	if err := json.Unmarshal([]byte(annotationValue), &challengeNames); err != nil {
-		return nil, fmt.Errorf("failed to parse challenges annotation: %w", err)
+
+	if obj.GetDeletionTimestamp() != nil && kubernetes.HasFinalizer(obj, CleanupFinalizer) {
+		r.log.Info("Deleting the source")
+		if len(challengesNames) > 0 {
+			if err = r.cleanupCopies(ctx, obj, challengesNames); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+
+		kubernetes.RemoveFinalizer(obj, CleanupFinalizer)
+		if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{}, nil
 	}
-	return challengeNames, nil
+
+	if err = r.cleanupUndesiredCopies(ctx, obj, challengesNames); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	for _, challengeName := range challengesNames {
+		if err = r.syncToNamespace(ctx, obj, challengeName); err != nil {
+			return reconcile.Result{}, fmt.Errorf("failed to sync %s to namespace %s: %w", obj.GetTypeMeta().Kind, challengeName, err)
+		}
+		if !kubernetes.HasFinalizer(obj, CleanupFinalizer) {
+			kubernetes.AddFinalizer(obj, CleanupFinalizer)
+			if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	}
+	return reconcile.Result{}, nil
+}
+
+func (r *DataSyncerReconciler) reconcileCopyObject(ctx context.Context, obj SyncableObject) (reconcile.Result, error) {
+	var source ctrlruntimeclient.Object
+	switch obj.(type) {
+	case SecretWrapper:
+		source = &corev1.Secret{}
+	case ConfigMapWrapper:
+		source = &corev1.ConfigMap{}
+	}
+
+	namespaced := getSource(obj)
+	if namespaced == nil {
+		return reconcile.Result{}, fmt.Errorf("object don't have any source")
+	}
+	// Try to get the source object
+	if err := r.Get(ctx, *namespaced, source); err != nil {
+		// 🔹 Source not found: delete the orphaned copy safely
+		if apierrors.IsNotFound(err) {
+			r.log.Info("Source object not found — cleaning up orphaned copy",
+				"name", obj.GetName(), "namespace", obj.GetNamespace())
+
+			// Handle finalizer removal before deleting
+			if kubernetes.HasAnyFinalizer(obj, SyncFinalizer) {
+				r.log.Info("Removing finalizer from orphaned object", "name", obj.GetName())
+				kubernetes.RemoveFinalizer(obj, SyncFinalizer)
+				if updateErr := r.Update(ctx, obj.GetBaseObject()); updateErr != nil {
+					return reconcile.Result{}, fmt.Errorf("failed to remove finalizer from orphaned object: %w", updateErr)
+				}
+			}
+
+			// Delete the orphaned copy
+			if delErr := r.Delete(ctx, obj.GetBaseObject()); delErr != nil && !apierrors.IsNotFound(delErr) {
+				return reconcile.Result{}, fmt.Errorf("failed to delete orphaned copy %s/%s: %w",
+					obj.GetNamespace(), obj.GetName(), delErr)
+			}
+			return reconcile.Result{}, nil
+		}
+
+		// Any other get error
+		return reconcile.Result{}, fmt.Errorf("failed to get source %s/%s: %w", namespaced.Namespace, namespaced.Name, err)
+	}
+
+	// If object is deleted now, reconcile the source to create another one if it's necessary.
+	if obj.GetDeletionTimestamp() != nil && kubernetes.HasAnyFinalizer(obj, SyncFinalizer) {
+		r.log.Info("Deleting the copie...")
+		if source.GetDeletionTimestamp() == nil {
+			r.log.Info("The source is still existing, reconciling it to create another copy...")
+			annotations := source.GetAnnotations()
+			if annotations == nil {
+				annotations = make(map[string]string)
+			}
+			annotations["datasyncer.kubeflag.io/last-trigger"] = time.Now().Format(time.RFC3339)
+
+			source.SetAnnotations(annotations)
+			if err := r.Update(ctx, source); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		kubernetes.RemoveFinalizer(obj, SyncFinalizer)
+		if err := r.Update(ctx, obj.GetBaseObject()); err != nil {
+			return reconcile.Result{}, fmt.Errorf("failed to remove finalizer in object %w", err)
+		}
+		return reconcile.Result{}, nil
+	}
+	var syncable SyncableObject
+	switch s := source.(type) {
+	case *corev1.Secret:
+		syncable = &SecretWrapper{Secret: s}
+	case *corev1.ConfigMap:
+		syncable = &ConfigMapWrapper{ConfigMap: s}
+	default:
+		return reconcile.Result{}, fmt.Errorf("unsupported source type: %T", source)
+	}
+	if !equality.Semantic.DeepEqual(syncable.GetData(), obj.GetData()) {
+		r.log.V(1).Info("Copied object is not synced to the source, Syncing...")
+		obj.SetData(syncable.GetData())
+		return reconcile.Result{}, r.Update(ctx, obj.GetBaseObject())
+	}
+	return reconcile.Result{}, nil
+}
+func (r *DataSyncerReconciler) syncToNamespace(ctx context.Context, source SyncableObject, targetNamespace string) error {
+	var newObj ctrlruntimeclient.Object
+	switch s := source.(type) {
+	case SecretWrapper:
+		newObj = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      s.GetName(),
+				Namespace: targetNamespace,
+				Labels: map[string]string{
+					ManagedLabel: "true",
+					SourceLabel:  fmt.Sprintf("%s---%s", s.GetNamespace(), s.GetName()),
+				},
+				Finalizers: []string{SyncFinalizer},
+			},
+			Data: source.GetData(),
+		}
+		return r.createOrUpdate(ctx, newObj)
+
+	case ConfigMapWrapper:
+		newObj = &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      s.GetName(),
+				Namespace: targetNamespace,
+				Labels: map[string]string{
+					ManagedLabel: "true",
+					SourceLabel:  fmt.Sprintf("%s---%s", s.GetNamespace(), s.GetName()),
+				},
+				Finalizers: []string{SyncFinalizer},
+			},
+			Data: s.Data,
+		}
+	}
+	return r.createOrUpdate(ctx, newObj)
+}
+
+func (r *DataSyncerReconciler) cleanupCopies(ctx context.Context, source SyncableObject, challenges []string) error {
+	// Build a set for quick membership tests
+	desired := sets.NewString(challenges...)
+	kind := source.GetBaseObject().GetObjectKind().GroupVersionKind().Kind
+	if len(desired) > 0 {
+		r.log.Info("CleaningUp the copies...")
+		for _, ns := range desired.List() {
+			var copie ctrlruntimeclient.Object
+			switch kind {
+			case "Secret":
+				copie = &corev1.Secret{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Secret",
+						APIVersion: "v1",
+					},
+				}
+			case "ConfigMap":
+				copie = &corev1.ConfigMap{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+					},
+				}
+			}
+			key := types.NamespacedName{Name: source.GetName(), Namespace: ns}
+
+			err := r.Get(ctx, key, copie)
+			if apierrors.IsNotFound(err) {
+				// nothing to delete in this namespace
+				fmt.Println("Nothing to delete in", ns)
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("failed to get %s %s/%s: %w", source.GetTypeMeta().Kind, ns, source.GetName(), err)
+			}
+
+			// Optional safety check: ensure it is a managed copy
+			if copie.GetLabels() != nil && copie.GetLabels()[ManagedLabel] != "true" {
+				fmt.Println("Skipping deletion of non-managed copy")
+				continue
+			}
+
+			if err := r.Delete(ctx, copie); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete %s %s/%s: %w", source.GetTypeMeta().Kind, ns, source.GetName(), err)
+			}
+		}
+	} else {
+		r.log.Info("There is no copies to delete")
+	}
+	return nil
+}
+
+func (r *DataSyncerReconciler) cleanupUndesiredCopies(ctx context.Context, source SyncableObject, desiredNamespaces []string) error {
+	r.log.Info("Looking for unwanted copies")
+	desired := sets.NewString(desiredNamespaces...)
+
+	selector := ctrlruntimeclient.MatchingLabels{
+		ManagedLabel: "true",
+		SourceLabel:  fmt.Sprintf("%s---%s", source.GetNamespace(), source.GetName()),
+	}
+
+	var list ctrlruntimeclient.ObjectList
+	switch source.(type) {
+	case SecretWrapper:
+		list = &corev1.SecretList{}
+	case ConfigMapWrapper:
+		list = &corev1.ConfigMapList{}
+	}
+
+	if err := r.List(ctx, list, selector); err != nil {
+		return fmt.Errorf("list managed copies: %w", err)
+	}
+
+	items, err := meta.ExtractList(list)
+	if err != nil {
+		return fmt.Errorf("extract list items: %w", err)
+	}
+	if len(items) > 0 {
+		r.log.V(1).Info("Deleting undesired copies...")
+		for _, s := range items {
+			// ✨ Convert to client.Object (has GetName()/GetNamespace())
+			obj, ok := s.(ctrlruntimeclient.Object)
+			if !ok {
+				return fmt.Errorf("failt to convert runtime.Object to ctrlruntimeclient.Object")
+			}
+			if desired.Has(obj.GetNamespace()) {
+				continue // still wanted
+			}
+
+			// Delete copies in namespaces no longer desired
+			if err := r.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("delete stale copy %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
+		}
+	} else {
+		r.log.V(1).Info("No undesired copies to delete")
+	}
+	return nil
 }
