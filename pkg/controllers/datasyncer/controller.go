@@ -135,10 +135,6 @@ func (r *DataSyncerReconciler) reconcileDataObject(ctx context.Context, obj Sync
 			return reconcile.Result{}, fmt.Errorf("failed to parse annotations: %w", err)
 		}
 
-		if err = r.cleanupUndesiredCopies(ctx, obj, challengesNames); err != nil {
-			return reconcile.Result{}, err
-		}
-
 		if obj.GetDeletionTimestamp() != nil && kubernetes.HasFinalizer(obj, CleanupFinalizer) {
 			r.log.Info("Deleting the source")
 			if len(challengesNames) > 0 {
@@ -151,6 +147,11 @@ func (r *DataSyncerReconciler) reconcileDataObject(ctx context.Context, obj Sync
 			if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
 				return reconcile.Result{}, err
 			}
+			return reconcile.Result{}, nil
+		}
+
+		if err = r.cleanupUndesiredCopies(ctx, obj, challengesNames); err != nil {
+			return reconcile.Result{}, err
 		}
 
 		for _, challengeName := range challengesNames {
@@ -185,15 +186,18 @@ func (r *DataSyncerReconciler) reconcileDataObject(ctx context.Context, obj Sync
 		// If object is deleted now, reconcile the source to create another one if it's necessary.
 		if obj.GetDeletionTimestamp() != nil && kubernetes.HasAnyFinalizer(obj, SyncFinalizer) {
 			r.log.Info("Deleting the copie...")
-			annotations := source.GetAnnotations()
-			if annotations == nil {
-				annotations = make(map[string]string)
-			}
-			annotations["datasyncer.kubeflag.io/last-trigger"] = time.Now().Format(time.RFC3339)
+			if source.GetDeletionTimestamp() == nil {
+				r.log.Info("The source is still existing, reconciling it to create another copy...")
+				annotations := source.GetAnnotations()
+				if annotations == nil {
+					annotations = make(map[string]string)
+				}
+				annotations["datasyncer.kubeflag.io/last-trigger"] = time.Now().Format(time.RFC3339)
 
-			source.SetAnnotations(annotations)
-			if err := r.Update(ctx, source); err != nil {
-				return reconcile.Result{}, err
+				source.SetAnnotations(annotations)
+				if err := r.Update(ctx, source); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 			kubernetes.RemoveFinalizer(obj, SyncFinalizer)
 			if err := r.Update(ctx, obj.GetBaseObject()); err != nil {
