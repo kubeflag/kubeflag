@@ -148,6 +148,7 @@ var _ = Describe("Secret Synchronization E2E", func() {
 		}, timeout, interval).Should(Equal("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 
 		By("updating the source Secret")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, secret)).To(Succeed())
 		secret.Data["token"] = []byte("1234567890")
 		Expect(k8sClient.Update(ctx, secret)).To(Succeed())
 
@@ -212,6 +213,7 @@ var _ = Describe("ConfigMap Synchronization E2E", func() {
 		}, timeout, interval).Should(Equal("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 
 		By("updating the ConfigMap")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, cm)).To(Succeed())
 		cm.Data["token"] = "1234567890"
 		Expect(k8sClient.Update(ctx, cm)).To(Succeed())
 

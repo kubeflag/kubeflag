@@ -130,100 +130,130 @@ func (r *DataSyncerReconciler) createOrUpdate(ctx context.Context, obj ctrlrunti
 
 func (r *DataSyncerReconciler) reconcileDataObject(ctx context.Context, obj SyncableObject) (reconcile.Result, error) {
 	if isSource(obj) {
-		challengesNames, err := getChallengeNamesFromAnnotation(obj)
-		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to parse annotations: %w", err)
+		return r.reconcileSourceObject(ctx, obj)
+	} else {
+		return r.reconcileCopyObject(ctx, obj)
+	}
+}
+
+func (r *DataSyncerReconciler) reconcileSourceObject(ctx context.Context, obj SyncableObject) (reconcile.Result, error) {
+	challengesNames, err := getChallengeNamesFromAnnotation(obj)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to parse annotations: %w", err)
+	}
+
+	if obj.GetDeletionTimestamp() != nil && kubernetes.HasFinalizer(obj, CleanupFinalizer) {
+		r.log.Info("Deleting the source")
+		if len(challengesNames) > 0 {
+			if err = r.cleanupCopies(ctx, obj, challengesNames); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 
-		if obj.GetDeletionTimestamp() != nil && kubernetes.HasFinalizer(obj, CleanupFinalizer) {
-			r.log.Info("Deleting the source")
-			if len(challengesNames) > 0 {
-				if err = r.cleanupCopies(ctx, obj, challengesNames); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
+		kubernetes.RemoveFinalizer(obj, CleanupFinalizer)
+		if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{}, nil
+	}
 
-			kubernetes.RemoveFinalizer(obj, CleanupFinalizer)
+	if err = r.cleanupUndesiredCopies(ctx, obj, challengesNames); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	for _, challengeName := range challengesNames {
+		if err = r.syncToNamespace(ctx, obj, challengeName); err != nil {
+			return reconcile.Result{}, fmt.Errorf("failed to sync %s to namespace %s: %w", obj.GetTypeMeta().Kind, challengeName, err)
+		}
+		if !kubernetes.HasFinalizer(obj, CleanupFinalizer) {
+			kubernetes.AddFinalizer(obj, CleanupFinalizer)
 			if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
 				return reconcile.Result{}, err
 			}
-			return reconcile.Result{}, nil
-		}
-
-		if err = r.cleanupUndesiredCopies(ctx, obj, challengesNames); err != nil {
-			return reconcile.Result{}, err
-		}
-
-		for _, challengeName := range challengesNames {
-			if err = r.syncToNamespace(ctx, obj, challengeName); err != nil {
-				return reconcile.Result{}, fmt.Errorf("failed to sync %s to namespace %s: %w", obj.GetTypeMeta().Kind, challengeName, err)
-			}
-			if !kubernetes.HasFinalizer(obj, CleanupFinalizer) {
-				kubernetes.AddFinalizer(obj, CleanupFinalizer)
-				if err = r.Update(ctx, obj.GetBaseObject()); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		}
-	} else {
-		var source ctrlruntimeclient.Object
-		switch obj.(type) {
-		case SecretWrapper:
-			source = &corev1.Secret{}
-		case ConfigMapWrapper:
-			source = &corev1.ConfigMap{}
-		}
-
-		namespaced := getSource(obj)
-		if namespaced == nil {
-			return reconcile.Result{}, fmt.Errorf("object don't have any source")
-		}
-
-		if err := r.Get(ctx, *namespaced, source); err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// If object is deleted now, reconcile the source to create another one if it's necessary.
-		if obj.GetDeletionTimestamp() != nil && kubernetes.HasAnyFinalizer(obj, SyncFinalizer) {
-			r.log.Info("Deleting the copie...")
-			if source.GetDeletionTimestamp() == nil {
-				r.log.Info("The source is still existing, reconciling it to create another copy...")
-				annotations := source.GetAnnotations()
-				if annotations == nil {
-					annotations = make(map[string]string)
-				}
-				annotations["datasyncer.kubeflag.io/last-trigger"] = time.Now().Format(time.RFC3339)
-
-				source.SetAnnotations(annotations)
-				if err := r.Update(ctx, source); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-			kubernetes.RemoveFinalizer(obj, SyncFinalizer)
-			if err := r.Update(ctx, obj.GetBaseObject()); err != nil {
-				return reconcile.Result{}, fmt.Errorf("failed to remove finalizer in object %w", err)
-			}
-			return reconcile.Result{}, nil
-		}
-		var syncable SyncableObject
-		switch s := source.(type) {
-		case *corev1.Secret:
-			syncable = &SecretWrapper{Secret: s}
-		case *corev1.ConfigMap:
-			syncable = &ConfigMapWrapper{ConfigMap: s}
-		default:
-			return reconcile.Result{}, fmt.Errorf("unsupported source type: %T", source)
-		}
-		if !equality.Semantic.DeepEqual(syncable.GetData(), obj.GetData()) {
-			r.log.V(1).Info("Copied object is not synced to the source, Syncing...")
-			obj.SetData(syncable.GetData())
-			return reconcile.Result{}, r.Update(ctx, obj.GetBaseObject())
 		}
 	}
-
 	return reconcile.Result{}, nil
 }
 
+func (r *DataSyncerReconciler) reconcileCopyObject(ctx context.Context, obj SyncableObject) (reconcile.Result, error) {
+	var source ctrlruntimeclient.Object
+	switch obj.(type) {
+	case SecretWrapper:
+		source = &corev1.Secret{}
+	case ConfigMapWrapper:
+		source = &corev1.ConfigMap{}
+	}
+
+	namespaced := getSource(obj)
+	if namespaced == nil {
+		return reconcile.Result{}, fmt.Errorf("object don't have any source")
+	}
+	// Try to get the source object
+	if err := r.Get(ctx, *namespaced, source); err != nil {
+		// 🔹 Source not found: delete the orphaned copy safely
+		if apierrors.IsNotFound(err) {
+			r.log.Info("Source object not found — cleaning up orphaned copy",
+				"name", obj.GetName(), "namespace", obj.GetNamespace())
+
+			// Handle finalizer removal before deleting
+			if kubernetes.HasAnyFinalizer(obj, SyncFinalizer) {
+				r.log.Info("Removing finalizer from orphaned object", "name", obj.GetName())
+				kubernetes.RemoveFinalizer(obj, SyncFinalizer)
+				if updateErr := r.Update(ctx, obj.GetBaseObject()); updateErr != nil {
+					return reconcile.Result{}, fmt.Errorf("failed to remove finalizer from orphaned object: %w", updateErr)
+				}
+			}
+
+			// Delete the orphaned copy
+			if delErr := r.Delete(ctx, obj.GetBaseObject()); delErr != nil && !apierrors.IsNotFound(delErr) {
+				return reconcile.Result{}, fmt.Errorf("failed to delete orphaned copy %s/%s: %w",
+					obj.GetNamespace(), obj.GetName(), delErr)
+			}
+			return reconcile.Result{}, nil
+		}
+
+		// Any other get error
+		return reconcile.Result{}, fmt.Errorf("failed to get source %s/%s: %w", namespaced.Namespace, namespaced.Name, err)
+	}
+
+	// If object is deleted now, reconcile the source to create another one if it's necessary.
+	if obj.GetDeletionTimestamp() != nil && kubernetes.HasAnyFinalizer(obj, SyncFinalizer) {
+		r.log.Info("Deleting the copie...")
+		if source.GetDeletionTimestamp() == nil {
+			r.log.Info("The source is still existing, reconciling it to create another copy...")
+			annotations := source.GetAnnotations()
+			if annotations == nil {
+				annotations = make(map[string]string)
+			}
+			annotations["datasyncer.kubeflag.io/last-trigger"] = time.Now().Format(time.RFC3339)
+
+			source.SetAnnotations(annotations)
+			if err := r.Update(ctx, source); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		kubernetes.RemoveFinalizer(obj, SyncFinalizer)
+		if err := r.Update(ctx, obj.GetBaseObject()); err != nil {
+			return reconcile.Result{}, fmt.Errorf("failed to remove finalizer in object %w", err)
+		}
+		return reconcile.Result{}, nil
+	}
+	var syncable SyncableObject
+	switch s := source.(type) {
+	case *corev1.Secret:
+		syncable = &SecretWrapper{Secret: s}
+	case *corev1.ConfigMap:
+		syncable = &ConfigMapWrapper{ConfigMap: s}
+	default:
+		return reconcile.Result{}, fmt.Errorf("unsupported source type: %T", source)
+	}
+	if !equality.Semantic.DeepEqual(syncable.GetData(), obj.GetData()) {
+		r.log.V(1).Info("Copied object is not synced to the source, Syncing...")
+		obj.SetData(syncable.GetData())
+		return reconcile.Result{}, r.Update(ctx, obj.GetBaseObject())
+	}
+	return reconcile.Result{}, nil
+}
 func (r *DataSyncerReconciler) syncToNamespace(ctx context.Context, source SyncableObject, targetNamespace string) error {
 	var newObj ctrlruntimeclient.Object
 	switch s := source.(type) {
@@ -253,7 +283,7 @@ func (r *DataSyncerReconciler) syncToNamespace(ctx context.Context, source Synca
 				},
 				Finalizers: []string{SyncFinalizer},
 			},
-			BinaryData: s.GetData(),
+			Data: s.Data,
 		}
 	}
 	return r.createOrUpdate(ctx, newObj)
@@ -262,21 +292,33 @@ func (r *DataSyncerReconciler) syncToNamespace(ctx context.Context, source Synca
 func (r *DataSyncerReconciler) cleanupCopies(ctx context.Context, source SyncableObject, challenges []string) error {
 	// Build a set for quick membership tests
 	desired := sets.NewString(challenges...)
+	kind := source.GetBaseObject().GetObjectKind().GroupVersionKind().Kind
 	if len(desired) > 0 {
 		r.log.Info("CleaningUp the copies...")
-		var copie ctrlruntimeclient.Object
 		for _, ns := range desired.List() {
-			switch source.(type) {
-			case *SecretWrapper:
-				copie = &corev1.Secret{}
-			case *ConfigMapWrapper:
-				copie = &corev1.ConfigMap{}
+			var copie ctrlruntimeclient.Object
+			switch kind {
+			case "Secret":
+				copie = &corev1.Secret{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Secret",
+						APIVersion: "v1",
+					},
+				}
+			case "ConfigMap":
+				copie = &corev1.ConfigMap{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+					},
+				}
 			}
-			key := types.NamespacedName{Name: source.GetGenerateName(), Namespace: ns}
+			key := types.NamespacedName{Name: source.GetName(), Namespace: ns}
 
 			err := r.Get(ctx, key, copie)
 			if apierrors.IsNotFound(err) {
 				// nothing to delete in this namespace
+				fmt.Println("Nothing to delete in", ns)
 				continue
 			}
 			if err != nil {
@@ -285,6 +327,7 @@ func (r *DataSyncerReconciler) cleanupCopies(ctx context.Context, source Syncabl
 
 			// Optional safety check: ensure it is a managed copy
 			if copie.GetLabels() != nil && copie.GetLabels()[ManagedLabel] != "true" {
+				fmt.Println("Skipping deletion of non-managed copy")
 				continue
 			}
 
