@@ -1,0 +1,111 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: tenants.kubeflag.io
+spec:
+  group: kubeflag.io
+  names:
+    kind: Tenant
+    listKind: TenantList
+    plural: tenants
+    shortNames:
+    - tn
+    singular: tenant
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.policies.maxInstancesPerUser
+      name: MaxPerUser
+      type: integer
+    - jsonPath: .spec.policies.maxInstancesPerTeam
+      name: MaxPerTeam
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TenantSpec defines the desired state of Tenant
+            properties:
+              description:
+                description: Human-readable description
+                type: string
+              displayName:
+                description: Display name for human-readability
+                type: string
+              policies:
+                description: Policies that govern instance creation and lifecycle
+                  for this tenant.
+                properties:
+                  maxInstancesPerTeam:
+                    description: |-
+                      Maximum number of simultaneously running instances a team can have.
+                      Set to 0 to disallow instance creation by teams.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  maxInstancesPerUser:
+                    description: |-
+                      Maximum number of simultaneously running instances a single user can have.
+                      Set to 0 to disallow instance creation by a single user.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                required:
+                - maxInstancesPerTeam
+                - maxInstancesPerUser
+                type: object
+              rejectedConsumers:
+                description: |-
+                  List of consumer names that are explicitly rejected from creating instances
+                  under this tenant. The consumer names correspond to the `Consumer.metadata.name`.
+                  If empty, no consumers are rejected by this tenant (rejection is tenant-local).
+                items:
+                  type: string
+                type: array
+            required:
+            - policies
+            type: object
+          status:
+            description: TenantStatus defines observed state for Tenant (informational;
+              updated by controllers)
+            properties:
+              lastUpdated:
+                description: Last time the controller updated the status for this
+                  tenant.
+                format: date-time
+                type: string
+              totalInstances:
+                description: Total number of ChallengeInstances currently active for
+                  this Tenant.
+                format: int32
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
