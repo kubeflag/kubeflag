@@ -21,7 +21,7 @@ import (
 )
 
 // +kubebuilder:object:generate=true
-// TenantSpec defines the desired state of Tenant
+// TenantSpec defines the desired state of Tenant.
 type TenantSpec struct {
 	// Display name for human-readability
 	// +optional
@@ -55,7 +55,7 @@ type TenantPolicies struct {
 	MaxInstancesPerTeam int32 `json:"maxInstancesPerTeam"`
 }
 
-// TenantStatus defines observed state for Tenant (informational; updated by controllers)
+// TenantStatus defines observed state for Tenant (informational; updated by controllers).
 type TenantStatus struct {
 	// Total number of ChallengeInstances currently active for this Tenant.
 	// +optional
