@@ -48,7 +48,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: TenantSpec defines the desired state of Tenant
+            description: TenantSpec defines the desired state of Tenant.
             properties:
               description:
                 description: Human-readable description
@@ -91,7 +91,7 @@ spec:
             type: object
           status:
             description: TenantStatus defines observed state for Tenant (informational;
-              updated by controllers)
+              updated by controllers).
             properties:
               lastUpdated:
                 description: Last time the controller updated the status for this

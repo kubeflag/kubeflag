@@ -23,6 +23,8 @@ spec:
   defaultTTL: 5m
   template:
     spec:
+      imagePullSecrets:
+        - name: my-registry-key
       containers:
         - image: nginx:alpine
           name: nginx

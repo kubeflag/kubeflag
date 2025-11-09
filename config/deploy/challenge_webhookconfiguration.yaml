@@ -1,0 +1,51 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kubeflag-challenge-validating
+webhooks:
+  - name: vchallenge.kubeflag.io
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      service:
+        name: kubeflag-webhook-service
+        namespace: kubeflag-system
+        path: /validate-kubeflag-io-v1alpha1-challenge
+        port: 443
+      caBundle: <BASE64_ENCODED_CA_BUNDLE>
+    rules:
+      - apiGroups: ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["challenges"]
+        scope: "*"
+
+---
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: kubeflag-challenge-mutating
+webhooks:
+  - name: mchallenge.kubeflag.io
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      service:
+        name: kubeflag-webhook-service
+        namespace: kubeflag-system
+        path: /mutate-challenge-v1
+        port: 443
+      caBundle: <BASE64_ENCODED_CA_BUNDLE>
+    rules:
+      - apiGroups: ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["challenges"]
+        scope: "*"
