@@ -21,6 +21,8 @@
 bin/*
 Dockerfile.cross
 dev.kubeconfig
+local-certs/
+_local.*
 # Test binary, built with `go test -c`
 *.test
 

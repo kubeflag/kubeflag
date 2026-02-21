@@ -33,6 +33,7 @@ import (
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlruntimewebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
@@ -99,6 +100,7 @@ func runWebhookManager(opts *options.WebhookServerRunOptions) error {
 		BaseContext: func() context.Context {
 			return rootCtx
 		},
+		Metrics:       metricsserver.Options{BindAddress: "0"}, // disabled for webhook-only binary
 		WebhookServer: ctrlruntimewebhook.NewServer(webhookOptions),
 	})
 
