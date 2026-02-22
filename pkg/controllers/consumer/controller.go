@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -43,6 +44,10 @@ const (
 	CleanupFinalizer = "kubeflag.io/cleanup-consumer"
 
 	tokenSecretNamespace = signingKeySecretNamespace
+
+	// TokenSecretLabel is applied to every token Secret so the controller can
+	// watch them and re-issue the token when one is deleted.
+	TokenSecretLabel = "kubeflag.io/consumer"
 )
 
 var rawLog *logr.Logger
@@ -66,6 +71,21 @@ func Add(_ context.Context, mgr manager.Manager, numWorkers int, log *logr.Logge
 		Named(ControllerName).
 		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers}).
 		For(&kubeflagv1.Consumer{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// Watch token Secrets so that a manual deletion triggers re-issuance.
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
+				consumerName, ok := obj.GetLabels()[TokenSecretLabel]
+				if !ok {
+					return nil
+				}
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: consumerName}}}
+			}),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(obj ctrlruntimeclient.Object) bool {
+				_, ok := obj.GetLabels()[TokenSecretLabel]
+				return ok
+			})),
+		).
 		Build(reconciler)
 
 	return err
@@ -177,6 +197,9 @@ func (r *ConsumerReconciler) reconcileActive(ctx context.Context, consumer *kube
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: tokenSecretNamespace,
+			Labels: map[string]string{
+				TokenSecretLabel: consumer.Name,
+			},
 		},
 		Data: map[string][]byte{
 			"token": []byte(tokenStr),
