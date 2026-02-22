@@ -83,7 +83,7 @@ func (v *validator) ValidateCreate(ctx context.Context, obj runtime.Object) (adm
 	}
 
 	// expiresAt must be in the future when provided.
-	if consumer.Spec.ExpiresAt != nil && !consumer.Spec.ExpiresAt.Time.After(time.Now()) {
+	if consumer.Spec.ExpiresAt != nil && !consumer.Spec.ExpiresAt.After(time.Now()) {
 		allErrs = append(allErrs, field.Invalid(
 			expiresAtPath,
 			consumer.Spec.ExpiresAt,
@@ -118,7 +118,7 @@ func (v *validator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.O
 	}
 
 	// expiresAt, when set, must remain in the future.
-	if newConsumer.Spec.ExpiresAt != nil && !newConsumer.Spec.ExpiresAt.Time.After(time.Now()) {
+	if newConsumer.Spec.ExpiresAt != nil && !newConsumer.Spec.ExpiresAt.After(time.Now()) {
 		allErrs = append(allErrs, field.Invalid(
 			expiresAtPath,
 			newConsumer.Spec.ExpiresAt,
