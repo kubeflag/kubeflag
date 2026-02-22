@@ -1,4 +1,4 @@
-name: e2e-datasyncer
+name: kubeflag-e2e-datasyncer
 
 on:
   pull_request:

@@ -1,7 +1,6 @@
-name: 🧪 Verify
+name: kubeflag-verify
 
 on:
-  push:
   pull_request:
     branches:
       - main
@@ -11,7 +10,6 @@ on:
 
 jobs:
   verify:
-    name: kubeflag-verify
     runs-on: ubuntu-latest
 
     steps:

@@ -1,4 +1,4 @@
-name: e2e-consumer
+name: kubeflag-e2e-consumer
 
 on:
   pull_request:

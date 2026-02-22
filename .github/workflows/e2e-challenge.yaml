@@ -1,4 +1,4 @@
-name: e2e-challenge
+name: kubeflag-e2e-challenge
 
 on:
   pull_request:
