@@ -74,7 +74,7 @@ type TenantList struct {
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:shortName=tn
+// +kubebuilder:resource:scope=Cluster,shortName=tn
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="MaxPerUser",type=integer,JSONPath=`.spec.policies.maxInstancesPerUser`
 // +kubebuilder:printcolumn:name="MaxPerTeam",type=integer,JSONPath=`.spec.policies.maxInstancesPerTeam`

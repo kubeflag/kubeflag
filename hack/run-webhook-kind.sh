@@ -153,7 +153,7 @@ metadata:
   name: kubeflag-challenge-validating
 webhooks:
   - name: vchallenge.kubeflag.io
-    admissionReviewVersions: ["v1"]
+    admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None
     failurePolicy: Fail
     timeoutSeconds: 10
@@ -167,6 +167,27 @@ webhooks:
         operations:  ["CREATE", "UPDATE"]
         resources:   ["challenges"]
         scope:       "*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kubeflag-consumer-validating
+webhooks:
+  - name: vconsumer.kubeflag.io
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      url: "https://${HOST_IP}:${WEBHOOK_PORT}/validate-kubeflag-io-v1alpha1-consumer"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - apiGroups: ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["consumers"]
+        scope: "*"
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration

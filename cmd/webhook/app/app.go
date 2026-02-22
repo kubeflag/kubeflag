@@ -29,6 +29,7 @@ import (
 
 	challengemutation "github.com/kubeflag/kubeflag/pkg/webhook/challenge/mutation"
 	challengevalidation "github.com/kubeflag/kubeflag/pkg/webhook/challenge/validation"
+	consumervalidation "github.com/kubeflag/kubeflag/pkg/webhook/consumer/validation"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -117,6 +118,12 @@ func runWebhookManager(opts *options.WebhookServerRunOptions) error {
 	// validation webhook can already use ctrl-runtime boilerplate
 	if err := challengevalidation.Add(mgr, log, caPool); err != nil {
 		log.Error(err, "Failed to setup challenge validation webhook")
+		return err
+	}
+
+	// consumer validation webhook
+	if err := consumervalidation.Add(mgr, log); err != nil {
+		log.Error(err, "Failed to setup consumer validation webhook")
 		return err
 	}
 

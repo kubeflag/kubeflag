@@ -1,0 +1,24 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kubeflag-consumer-validating
+webhooks:
+  - name: vconsumer.kubeflag.io
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      service:
+        name: kubeflag-webhook-service
+        namespace: kubeflag-system
+        path: /validate-kubeflag-io-v1alpha1-consumer
+        port: 443
+      caBundle: <BASE64_ENCODED_CA_BUNDLE>
+    rules:
+      - apiGroups: ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["consumers"]
+        scope: "*"
