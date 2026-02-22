@@ -22,6 +22,7 @@ import (
 	"github.com/kubeflag/kubeflag/cmd/controller-manager/app/options"
 	challengecontroller "github.com/kubeflag/kubeflag/pkg/controllers/challenge"
 	instancecontroller "github.com/kubeflag/kubeflag/pkg/controllers/challengeinstance"
+	consumercontroller "github.com/kubeflag/kubeflag/pkg/controllers/consumer"
 	datasynccontroller "github.com/kubeflag/kubeflag/pkg/controllers/datasyncer"
 )
 
@@ -34,6 +35,7 @@ var AllControllers = map[string]controllerCreator{
 	challengecontroller.ControllerName: createChallengeController,
 	instancecontroller.ControllerName:  createInstanceController,
 	datasynccontroller.ControllerName:  createDataSyncController,
+	consumercontroller.ControllerName:  createConsumerController,
 }
 
 func createAllControllers(ctrlCtx *options.ControllerContext) error {
@@ -56,4 +58,8 @@ func createInstanceController(ctrlCtx *options.ControllerContext) error {
 
 func createDataSyncController(ctrlCtx *options.ControllerContext) error {
 	return datasynccontroller.Add(ctrlCtx.Ctx, ctrlCtx.Mgr, 1, ctrlCtx.Log)
+}
+
+func createConsumerController(ctrlCtx *options.ControllerContext) error {
+	return consumercontroller.Add(ctrlCtx.Ctx, ctrlCtx.Mgr, 1, ctrlCtx.Log)
 }
