@@ -1,12 +1,11 @@
-name: Lint
+name: kubeflag-lint
 
 on:
-  push:
   pull_request:
 
 jobs:
   lint:
-    name: Run on Ubuntu
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code

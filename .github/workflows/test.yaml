@@ -1,12 +1,11 @@
-
-name: Tests
+name: kubeflag-unit-tests
 
 on:
   pull_request:
 
 jobs:
   test:
-    name: Run on Ubuntu
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
