@@ -45,6 +45,7 @@ jobs:
         run: |
           kind get kubeconfig --name kubeflag-e2e > kubeconfig
           export KUBECONFIG=$PWD/kubeconfig
+          kubectl create ns kubeflag-system
           kubectl create -f config/crd/bases/
           go test ./pkg/test/e2e/consumer/... -tags=e2e -v
 
