@@ -1,17 +1,17 @@
-name: e2e-challenge
+name: e2e-consumer
 
 on:
   pull_request:
     branches: [ main ]
     paths:
       - 'pkg/test/e2e/suite/**'
-      - 'pkg/test/e2e/challenge/**'
-      - 'pkg/controllers/challenge/**'
-      - '.github/workflows/e2e-challenge.yaml'
+      - 'pkg/test/e2e/consumer/**'
+      - 'pkg/controllers/consumer/**'
+      - '.github/workflows/e2e-consumer.yaml'
 
 jobs:
   e2e:
-    name: Run Challenge Controller
+    name: Run Consumer Controller
     runs-on: ubuntu-latest
 
     steps:
@@ -46,7 +46,7 @@ jobs:
           kind get kubeconfig --name kubeflag-e2e > kubeconfig
           export KUBECONFIG=$PWD/kubeconfig
           kubectl create -f config/crd/bases/
-          go test ./pkg/test/e2e/challenge/... -tags=e2e -v
+          go test ./pkg/test/e2e/consumer/... -tags=e2e -v
 
       # Tear down cluster to free resources
       - name: Delete Kind cluster

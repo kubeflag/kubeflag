@@ -11,7 +11,7 @@ on:
 
 jobs:
   verify:
-    name: 🧪 Verify (Go + Tools)
+    name: kubeflag-verify
     runs-on: ubuntu-latest
 
     steps:

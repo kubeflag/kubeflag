@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    name: Run on Ubuntu
+    name: kubeflag-unit-tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
