@@ -29,6 +29,8 @@ import (
 
 	challengemutation "github.com/kubeflag/kubeflag/pkg/webhook/challenge/mutation"
 	challengevalidation "github.com/kubeflag/kubeflag/pkg/webhook/challenge/validation"
+	challengeinstancemutation "github.com/kubeflag/kubeflag/pkg/webhook/challengeinstance/mutation"
+	challengeinstancevalidation "github.com/kubeflag/kubeflag/pkg/webhook/challengeinstance/validation"
 	consumervalidation "github.com/kubeflag/kubeflag/pkg/webhook/consumer/validation"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -127,8 +129,17 @@ func runWebhookManager(opts *options.WebhookServerRunOptions) error {
 		return err
 	}
 
+	// challengeinstance validation webhook
+	if err := challengeinstancevalidation.Add(mgr, log); err != nil {
+		log.Error(err, "Failed to setup challengeinstance validation webhook")
+		return err
+	}
+
 	// mutation cannot, because we require separate defaulting for CREATE and UPDATE operations
 	challengemutation.NewAdmissionHanlder(&log, mgr.GetScheme(), mgr.GetClient(), caPool).SetupWebhookWithManager(mgr)
+
+	// challengeinstance mutation webhook (CREATE-only defaulting)
+	challengeinstancemutation.NewAdmissionHandler(&log, mgr.GetScheme(), mgr.GetClient()).SetupWebhookWithManager(mgr)
 	log.Info("Registered endpoints", "endpoints", mgr.GetWebhookServer())
 
 	log.Info("Starting the webhook...")
