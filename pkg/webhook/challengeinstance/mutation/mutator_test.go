@@ -25,7 +25,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctrlruntimefakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func newScheme() *runtime.Scheme {
@@ -49,7 +49,7 @@ func challengeWithTTL(name string, ttl *metav1.Duration) *kubeflagv1.Challenge {
 func TestMutate_DefaultsTTLFromChallenge(t *testing.T) {
 	scheme := newScheme()
 	challenge := challengeWithTTL("web-challenge", durationPtr(15*time.Minute))
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
+	client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
 
 	instance := &kubeflagv1.ChallengeInstance{
 		Spec: kubeflagv1.ChallengeInstanceSpec{
@@ -75,7 +75,7 @@ func TestMutate_DefaultsTTLFromChallenge(t *testing.T) {
 func TestMutate_PreservesExistingTTL(t *testing.T) {
 	scheme := newScheme()
 	challenge := challengeWithTTL("web-challenge", durationPtr(15*time.Minute))
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
+	client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
 
 	instance := &kubeflagv1.ChallengeInstance{
 		Spec: kubeflagv1.ChallengeInstanceSpec{
@@ -98,7 +98,7 @@ func TestMutate_PreservesExistingTTL(t *testing.T) {
 func TestMutate_InjectsChallengeRefLabel(t *testing.T) {
 	scheme := newScheme()
 	challenge := challengeWithTTL("web-challenge", durationPtr(15*time.Minute))
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
+	client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
 
 	instance := &kubeflagv1.ChallengeInstance{
 		Spec: kubeflagv1.ChallengeInstanceSpec{
@@ -125,7 +125,7 @@ func TestMutate_InjectsChallengeRefLabel(t *testing.T) {
 func TestMutate_PreservesExistingLabels(t *testing.T) {
 	scheme := newScheme()
 	challenge := challengeWithTTL("web-challenge", durationPtr(15*time.Minute))
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
+	client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(challenge).Build()
 
 	instance := &kubeflagv1.ChallengeInstance{
 		ObjectMeta: metav1.ObjectMeta{
@@ -155,7 +155,7 @@ func TestMutate_PreservesExistingLabels(t *testing.T) {
 
 func TestMutate_ChallengeNotFound(t *testing.T) {
 	scheme := newScheme()
-	client := fake.NewClientBuilder().WithScheme(scheme).Build() // no challenge in store
+	client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).Build() // no challenge in store
 
 	instance := &kubeflagv1.ChallengeInstance{
 		Spec: kubeflagv1.ChallengeInstanceSpec{
@@ -173,7 +173,7 @@ func TestMutate_ChallengeNotFound(t *testing.T) {
 
 func TestMutate_SkipsWhenDeletionTimestampSet(t *testing.T) {
 	scheme := newScheme()
-	client := fake.NewClientBuilder().WithScheme(scheme).Build() // no challenge needed
+	client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).Build() // no challenge needed
 
 	now := metav1.Now()
 	instance := &kubeflagv1.ChallengeInstance{

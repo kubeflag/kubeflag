@@ -25,7 +25,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctrlruntimefakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // newScheme returns a scheme with kubeflagv1 types registered.
@@ -170,7 +170,7 @@ func TestValidateCreate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scheme := newScheme()
-			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			clientBuilder := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme)
 			for _, obj := range tt.objects {
 				clientBuilder = clientBuilder.WithRuntimeObjects(obj)
 			}
@@ -267,7 +267,7 @@ func TestValidateUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scheme := newScheme()
-			client := fake.NewClientBuilder().WithScheme(scheme).Build()
+			client := ctrlruntimefakeclient.NewClientBuilder().WithScheme(scheme).Build()
 
 			v := NewValidator(client)
 			_, err := v.ValidateUpdate(context.Background(), tt.oldInstance, tt.newInstance)
