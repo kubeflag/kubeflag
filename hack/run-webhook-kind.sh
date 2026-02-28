@@ -209,6 +209,48 @@ webhooks:
         operations:  ["CREATE", "UPDATE"]
         resources:   ["challenges"]
         scope:       "*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kubeflag-challengeinstance-validating
+webhooks:
+  - name: vchallengeinstance.kubeflag.io
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      url: "https://${HOST_IP}:${WEBHOOK_PORT}/validate-kubeflag-io-v1alpha1-challengeinstance"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - apiGroups:   ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["challengeinstances"]
+        scope:       "*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: kubeflag-challengeinstance-mutating
+webhooks:
+  - name: mchallengeinstance.kubeflag.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      url: "https://${HOST_IP}:${WEBHOOK_PORT}/mutate-challengeinstance-v1"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - apiGroups:   ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations:  ["CREATE"]
+        resources:   ["challengeinstances"]
+        scope:       "*"
 EOF
 info "ValidatingWebhookConfiguration and MutatingWebhookConfiguration applied."
 info "Webhook URL: https://${HOST_IP}:${WEBHOOK_PORT}"
