@@ -209,6 +209,48 @@ webhooks:
         operations:  ["CREATE", "UPDATE"]
         resources:   ["challenges"]
         scope:       "*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kubeflag-tenant-validating
+webhooks:
+  - name: vtenant.kubeflag.io
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      url: "https://${HOST_IP}:${WEBHOOK_PORT}/validate-kubeflag-io-v1alpha1-tenant"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - apiGroups:   ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["tenants"]
+        scope:       "*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: kubeflag-tenant-mutating
+webhooks:
+  - name: mtenant.kubeflag.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    matchPolicy: Equivalent
+    clientConfig:
+      url: "https://${HOST_IP}:${WEBHOOK_PORT}/mutate-tenant-v1"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - apiGroups:   ["kubeflag.io"]
+        apiVersions: ["v1alpha1"]
+        operations:  ["CREATE"]
+        resources:   ["tenants"]
+        scope:       "*"
 EOF
 info "ValidatingWebhookConfiguration and MutatingWebhookConfiguration applied."
 info "Webhook URL: https://${HOST_IP}:${WEBHOOK_PORT}"
